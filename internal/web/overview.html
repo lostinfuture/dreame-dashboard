@@ -1,0 +1,150 @@
+{{define "overview"}}
+{{template "top" .}}
+<p class="banner" id="status-banner" role="status" {{if not .Banner}}hidden{{end}}>{{.Banner}}</p>
+{{template "flash" .}}
+<div class="overview-stack">
+<h1 class="sr"><span translate="no">{{.H1}}</span></h1>
+{{if .OpenAIConfigured}}
+<p class="ai-daily-text" id="ai-daily-text"{{if not .DailyAIText}} hidden{{end}}>{{.DailyAIText}}</p>
+{{end}}
+<div class="stack charts-col" id="history">
+<div class="history-head">
+<h2>Air history</h2>
+{{template "span" .}}
+</div>
+<div class="chart-grid{{if le (len .Charts) 1}} chart-grid-single{{end}}">
+{{range .Charts}}
+<section class="panel chart-card{{if .Compact}} chart-card-compact{{end}}" data-chart="{{.ID}}" data-title="{{.Title}}">
+<div class="chart-head">
+<div class="chart-title-wrap">
+<span class="dot dot-{{if .Zone}}{{.Zone}}{{else}}muted{{end}} chart-zone-dot"{{if not .Zone}} hidden{{end}} aria-hidden="true"></span>
+<h3{{if .NoTranslate}} translate="no"{{end}}>{{.Title}}</h3>
+</div>
+<div class="chart-head-right">
+<div class="chart-readout">
+{{range .Readouts}}<span>{{if gt (len $.Charts) 1}}{{else}}<span class="muted"{{if .NoTranslate}} translate="no"{{end}}>{{.Label}}</span> {{end}}<span class="num{{if .Zone}} val-{{.Zone}}{{end}}" data-readout="{{.Label}}">{{.Value}}</span></span>{{end}}
+<span class="muted chart-when">Now</span>
+</div>
+<button class="icon-btn chart-zoom-btn" type="button" aria-label="Zoom {{.Title}} chart" title="Zoom chart"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2h4v4M14 2l-4.5 4.5M6 14H2v-4M2 14l4.5-4.5"/></svg></button>
+</div>
+</div>
+{{if .Meaning}}<p class="chart-desc">{{.Meaning}}</p>{{end}}
+<div class="chart-wrap" tabindex="0" role="img" aria-label="{{.AriaLabel}}" title="Click to zoom">
+<div class="chart-plot{{if .Compact}} chart-plot-compact{{end}}" data-empty="{{if .EmptyChart}}1{{else}}0{{end}}">
+<p class="chart-empty"{{if not .EmptyChart}} hidden{{end}}>{{.EmptyText}}</p>
+{{range .Tracks}}<div class="track{{if .Half}} track-half{{else if $.Charts}}{{if gt (len $.Charts) 3}} track-grid{{end}}{{end}}">{{if .Label}}<span class="track-label">{{.Label}}</span>{{end}}<div class="track-y">{{range .YTicks}}<span>{{.}}</span>{{end}}</div>{{.SVG}}</div>{{end}}
+</div>
+<div class="chart-x">{{range .XTicks}}<span>{{.}}</span>{{end}}</div>
+</div>
+<template class="chart-data">{{.ChartJSON}}</template>
+<div class="stats">
+{{range .Stats}}<span><span class="muted">{{.Label}}</span> <span class="num">{{.Value}}</span></span>{{end}}
+</div>
+</section>
+{{end}}
+</div>
+</div>
+</div>
+<dialog class="zoom-dialog" id="chart-zoom" aria-labelledby="zoom-title" data-ai-ready="{{if .OpenAIConfigured}}1{{else}}0{{end}}" data-ai-model="{{.OpenAIModel}}">
+<div class="zoom-surface">
+<div class="zoom-head">
+<div class="zoom-title-row">
+<span class="dot dot-muted" id="zoom-zone-dot" aria-hidden="true"></span>
+<h2 id="zoom-title">Chart</h2>
+<span class="pill pill-muted" id="zoom-span">{{.Span}}</span>
+</div>
+<div class="zoom-head-right">
+<div class="chart-readout" id="zoom-readout">
+<span class="num" id="zoom-val">—</span>
+<span class="muted" id="zoom-when">Now</span>
+</div>
+<button class="btn btn-sm" id="zoom-close" type="button" aria-label="Close zoomed chart">Close</button>
+</div>
+</div>
+<p class="zoom-desc" id="zoom-desc" hidden></p>
+<div class="zoom-wrap" id="zoom-wrap" tabindex="0" role="img" aria-label="Zoomed chart">
+<div class="zoom-plot" id="zoom-plot">
+<p class="chart-empty" id="zoom-empty" hidden>Collecting readings…</p>
+<div class="track track-zoom">
+<div class="track-y" id="zoom-y"></div>
+<svg class="chart-svg" id="zoom-svg" viewBox="0 0 880 300" preserveAspectRatio="none" aria-hidden="true">
+<defs>
+<linearGradient id="stroke-zoom" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="300"></linearGradient>
+<linearGradient id="fill-zoom" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="300"><stop id="zoom-grad-start" offset="0%" stop-color="var(--ok)" stop-opacity="0.22"/><stop id="zoom-grad-end" offset="100%" stop-color="var(--ok)" stop-opacity="0"/></linearGradient>
+</defs>
+<line class="grid" x1="0" y1="12" x2="880" y2="12"/>
+<line class="grid" x1="0" y1="81" x2="880" y2="81"/>
+<line class="grid" x1="0" y1="150" x2="880" y2="150"/>
+<line class="grid" x1="0" y1="219" x2="880" y2="219"/>
+<line class="grid" x1="0" y1="288" x2="880" y2="288"/>
+</svg>
+</div>
+</div>
+<div class="chart-x" id="zoom-x"></div>
+</div>
+<div class="stats" id="zoom-stats"></div>
+<p class="zoom-bands" id="zoom-bands" hidden></p>
+<div class="zoom-ai" id="zoom-ai">
+<div class="ai-head">
+<div class="ai-title-row">
+<h3>ChatGPT analysis</h3>
+<span class="pill pill-muted" id="zoom-ai-status" hidden></span>
+<span class="muted ai-meta" id="zoom-ai-meta"></span>
+</div>
+<div class="ai-controls">
+{{if .OpenAIConfigured}}<button class="btn btn-sm btn-primary" id="zoom-ai-btn" type="button">Analyze</button><button class="btn btn-sm" id="zoom-ai-refresh" type="button" hidden>Regenerate</button>{{else}}<a class="btn btn-sm" href="/device#ai">Configure OpenAI key</a>{{end}}
+</div>
+</div>
+<p class="note" id="zoom-ai-state" role="status" hidden></p>
+<div class="ai-body" id="zoom-ai-body"></div>
+</div>
+</div>
+</dialog>
+{{end}}
+
+{{define "top"}}
+<header class="topbar">
+<div class="brandline">
+<a class="product-inline brand-link" href="/" translate="no">Dreame</a>
+</div>
+<div class="conn">
+<span class="dot dot-{{.Dot}}" aria-hidden="true"></span>
+<span class="age" id="age">{{.Age}}</span>
+{{if eq .Active "overview"}}<a class="pill pill-muted standby-pill" id="top-standby" href="/device#controls"{{if not .Standby}} hidden{{end}}>Standby</a>{{end}}
+{{if .ReadOnly}}<span class="pill">Read-only</span>{{end}}
+<a class="icon-btn gear-btn{{if ne .Active "overview"}} is-active{{end}}" href="/device" aria-label="Device and settings" title="Device &amp; settings"{{if eq .Active "device"}} aria-current="page"{{end}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
+</div>
+</header>
+<p class="sr" id="announcer" role="status">{{.Announce}}</p>
+<p class="banner" id="live" hidden role="status">Live updates paused. Reconnecting… <a href="">Reload</a></p>
+{{end}}
+
+{{define "subbar"}}
+<nav class="subbar" aria-label="Settings navigation">
+<a class="back-link" href="/"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5L6 8l4.5 4.5"/></svg>Dashboard</a>
+<div class="segmented">
+<a href="/device" {{if eq .Active "device"}}aria-current="page"{{end}}>Device &amp; settings</a>
+<a href="/activity" {{if eq .Active "activity"}}aria-current="page"{{end}}>Activity</a>
+</div>
+</nav>
+{{end}}
+
+{{define "flash"}}
+{{if .Flash}}<div class="banner {{if .FlashInfo}}info{{else}}flash{{end}}" role="status">{{if .FlashInfo}}<pre class="flash-body">{{.Flash}}</pre>{{else}}<p>{{.Flash}}</p>{{end}}
+<form method="post" action="/dismiss">
+<input type="hidden" name="token" value="{{.Token}}">
+<input type="hidden" name="page" value="{{.Active}}">
+{{if eq .Active "overview"}}<input type="hidden" name="span" value="{{.Span}}">{{end}}
+<button class="btn" type="submit">Dismiss</button>
+</form>
+</div>{{end}}
+{{end}}
+
+{{define "span"}}
+<nav class="segmented" aria-label="Chart span">
+<a href="/?span=6h" {{if eq .Span "6h"}}aria-current="page"{{end}}>6&nbsp;h</a>
+<a href="/?span=24h" {{if eq .Span "24h"}}aria-current="page"{{end}}>24&nbsp;h</a>
+<a href="/?span=7d" {{if eq .Span "7d"}}aria-current="page"{{end}}>7&nbsp;d</a>
+<a href="/?span=30d" {{if eq .Span "30d"}}aria-current="page"{{end}}>30&nbsp;d</a>
+</nav>
+{{end}}

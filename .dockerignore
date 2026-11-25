@@ -1,0 +1,16 @@
+.git
+.github
+private
+data
+secrets
+*.md
+LICENSE
+.env
+.env.*
+*.pw
+*.key
+*.pem
+*.test
+*.out
+compose.*.yml
+docker-compose*.yml

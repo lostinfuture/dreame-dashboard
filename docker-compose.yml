@@ -1,0 +1,46 @@
+# Do not forward port 9094 on your router. The dashboard has no login password
+# by default unless you enable DMD_BASIC_USER and DMD_BASIC_PASSWORD_FILE.
+services:
+  dreame-dashboard:
+    image: ${DMD_IMAGE:-ghcr.io/lostinfuture/dreame-dashboard:latest}
+    container_name: dreame-dashboard
+    restart: unless-stopped
+    user: "${DMD_UID:-1000}:${DMD_GID:-1000}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 15s
+    ports:
+      - "9094:9094"
+    tmpfs:
+      - /run:uid=${DMD_UID:-1000},gid=${DMD_GID:-1000},mode=0700
+      - /tmp
+    environment:
+      TZ: ${TZ:-UTC}
+      DMD_REGION: ${DMD_REGION:-us}
+      DMD_POLL_INTERVAL: ${DMD_POLL_INTERVAL:-30s}
+      DMD_READ_ONLY: ${DMD_READ_ONLY:-false}
+      DMD_ENABLE_MQTT: ${DMD_ENABLE_MQTT:-false}
+      # Optional unattended sign-in. Omit both to sign in through the web page
+      # (stores only the OAuth session token in /data/tokens.json).
+      # DMD_EMAIL: you@example.com
+      # DMD_PASSWORD_FILE: /secrets/dreame.pw
+    volumes:
+      # :Z sets the SELinux label on Fedora/RHEL and is safe on non-SELinux hosts.
+      - ./data:/data:Z
+      # Optional mount when using DMD_PASSWORD_FILE, DMD_BASIC_PASSWORD_FILE,
+      # or DMD_OPENAI_API_KEY_FILE (mode 0600 files owned by DMD_UID:DMD_GID):
+      # - ./secrets:/secrets:ro,Z
+    mem_limit: 128m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "/usr/bin/dmd", "healthcheck"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

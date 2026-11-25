@@ -1,0 +1,29 @@
+{{define "gate"}}
+<section class="gate">
+{{if eq .Gate "boot"}}
+<h1>Connecting to Dreame</h1>
+<p>Reading the current purifier state. This page reloads on its own.</p>
+{{else}}
+<h1>Sign in to Dreame</h1>
+<p>Stores only the session token on this machine. Your password is not written to disk.</p>
+{{if .LoginError}}<p class="banner" role="status">{{.LoginError}}</p>{{end}}
+<form method="post" action="/login">
+<input type="hidden" name="token" value="{{.Token}}">
+<label for="region">Region</label>
+<select id="region" name="region">
+<option value="us" {{if eq .Region "us"}}selected{{end}}>us</option>
+<option value="eu" {{if eq .Region "eu"}}selected{{end}}>eu</option>
+<option value="cn" {{if eq .Region "cn"}}selected{{end}}>cn</option>
+<option value="sg" {{if eq .Region "sg"}}selected{{end}}>sg</option>
+<option value="kr" {{if eq .Region "kr"}}selected{{end}}>kr</option>
+<option value="ru" {{if eq .Region "ru"}}selected{{end}}>ru</option>
+</select>
+<label for="email">Email</label>
+<input id="email" name="email" type="email" autocomplete="username" spellcheck="false" autocorrect="off" autocapitalize="none" placeholder="name@example.com…" value="{{.Email}}" required>
+<label for="password">Password</label>
+<input id="password" name="password" type="password" autocomplete="current-password" required>
+<button class="btn btn-primary" type="submit" data-busy="Signing in…">Sign in to Dreame</button>
+</form>
+{{end}}
+</section>
+{{end}}

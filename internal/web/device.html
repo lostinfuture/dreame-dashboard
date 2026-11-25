@@ -1,0 +1,262 @@
+{{define "device"}}
+{{template "top" .}}
+{{template "subbar" .}}
+<p class="banner" id="status-banner" role="status" {{if not .Banner}}hidden{{end}}>{{.Banner}}</p>
+{{template "flash" .}}
+<div class="workspace">
+<section class="lead workspace-device">
+<div class="panel-head"><h1>{{.H1}}</h1><span id="power-state-pill" class="pill pill-{{.PowerStateClass}}"{{if not .PowerState}} hidden{{end}}>{{.PowerState}}</span></div>
+<div class="hepa hepa-top">
+<div class="hepa-head"><span><span translate="no">HEPA</span> filter</span><span class="num" id="hepa-label">{{if .HEPALabel}}{{.HEPALabel}}%{{else}}—{{end}}</span></div>
+<div id="hepa-bar" role="progressbar" {{if .HEPAKnown}}aria-valuenow="{{.HEPA}}"{{end}} aria-valuemin="0" aria-valuemax="100" aria-label="HEPA filter life">
+<svg class="rail-svg" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="rail-track" x="0" y="0" width="100" height="6"></rect><rect id="hepa-fill" class="rail-fill rail-{{.HEPAClass}}" x="0" y="0" width="{{.HEPA}}" height="6"></rect></svg>
+</div>
+<p class="note" id="hepa-text">{{.HEPAText}}</p>
+{{if .ShowCarbon}}
+<div class="filter-second">
+<div class="hepa-head"><span>Carbon filter</span><span class="num" id="carbon-label">{{if .CarbonLabel}}{{.CarbonLabel}}%{{else}}—{{end}}</span></div>
+<div id="carbon-bar" role="progressbar" {{if .CarbonKnown}}aria-valuenow="{{.Carbon}}"{{end}} aria-valuemin="0" aria-valuemax="100" aria-label="Activated carbon filter life">
+<svg class="rail-svg" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="rail-track" x="0" y="0" width="100" height="6"></rect><rect id="carbon-fill" class="rail-fill rail-{{.CarbonClass}}" x="0" y="0" width="{{.Carbon}}" height="6"></rect></svg>
+</div>
+<p class="note" id="carbon-text">{{.CarbonText}}</p>
+</div>
+{{end}}
+</div>
+<h2 class="group-label">Identity</h2>
+<dl class="kv">
+{{range .Identity}}<div><dt>{{.Label}}</dt><dd{{if .Mono}} translate="no"{{end}}>{{.Value}}</dd></div>{{end}}
+{{if and .OTAState (ne .OTAState "Idle") (ne .OTAState "Unknown")}}<div><dt><span translate="no">OTA</span></dt><dd><span class="pill pill-{{.OTAClass}}">{{.OTAState}}</span>{{if .OTAProgress}} {{.OTAProgress}}{{end}}</dd></div>{{end}}
+</dl>
+<h2 class="group-label">Network</h2>
+<dl class="kv">
+{{range .Network}}<div><dt>{{if eq .Label "MQTT"}}<span translate="no">{{.Label}}</span>{{else}}{{.Label}}{{end}}</dt><dd{{if .Mono}} translate="no"{{end}}>{{.Value}}</dd></div>{{end}}
+</dl>
+<div class="actions">
+<form method="post" action="/poll">
+<input type="hidden" name="token" value="{{.Token}}">
+<input type="hidden" name="page" value="device">
+<button class="btn btn-sm" type="submit" data-busy="Polling…">Poll now</button>
+</form>
+</div>
+</section>
+<div class="stack workspace-main">
+<section class="panel" id="controls">
+<div class="panel-head"><h2>Controls</h2><p class="note" id="write-reason"{{if not .WriteReason}} hidden{{end}}>{{.WriteReason}}</p></div>
+{{if .PowerActionOK}}
+<div class="control">
+<div class="control-label">Power</div>
+<form method="get" action="/device" class="power-row">
+<button class="btn btn-primary" id="power-btn" type="submit" name="stage" value="{{.PowerStage}}" data-old="{{.PowerOld}}" data-label="Power" data-confirm="{{.PowerText}}" data-verb="{{.PowerVerb}}" {{if .PowerOff}}disabled{{end}}>{{.PowerLabel}}</button>
+</form>
+</div>
+{{end}}
+{{range $g := .Groups}}
+<div class="control">
+<div class="control-label">{{$g.Label}}</div>
+{{if $g.Fan}}
+<form method="get" action="/device" class="stepper" data-stepper="fan" data-cur="{{$g.Cur}}" data-min="{{$g.Min}}" data-max="{{$g.Max}}" data-forces="{{if $g.Forces}}1{{else}}0{{end}}" data-mode="{{$g.ModeName}}" data-off="{{if $g.Off}}1{{else}}0{{end}}">
+<button class="btn" type="submit" name="stage" value="{{$g.Dec}}" data-dir="-1" data-old="{{$g.Cur}}" data-label="Fan speed" aria-label="Decrease fan speed" {{if or $g.Off $g.DecOff}}disabled{{end}}>−</button>
+<span class="num fan-now">{{$g.FanText}}</span>
+<button class="btn" type="submit" name="stage" value="{{$g.Inc}}" data-dir="1" data-old="{{$g.Cur}}" data-label="Fan speed" aria-label="Increase fan speed" {{if or $g.Off $g.IncOff}}disabled{{end}}>+</button>
+</form>
+<p class="note fan-note"{{if not $g.Note}} hidden{{end}}>{{$g.Note}}</p>
+{{else if $g.Heater}}
+<form method="get" action="/device" class="stepper" data-stepper="heater" data-cur="{{$g.Cur}}" data-min="{{$g.Min}}" data-max="{{$g.Max}}" data-unit="{{$g.HeaterUnit}}" data-off="{{if $g.Off}}1{{else}}0{{end}}">
+<button class="btn btn-sm" type="submit" name="stage" value="{{$g.HeaterOff}}" data-dir="off" data-old="{{$g.Cur}}" data-label="Heater" {{if or $g.Off (not $g.HeaterActive)}}disabled{{end}}>Off</button>
+<button class="btn" type="submit" name="stage" value="{{$g.Dec}}" data-dir="-1" data-old="{{$g.Cur}}" data-label="Heater" aria-label="Decrease heater temperature" {{if or $g.Off $g.DecOff}}disabled{{end}}>−</button>
+<span class="num heater-now">{{$g.HeaterText}}</span>
+<button class="btn" type="submit" name="stage" value="{{$g.Inc}}" data-dir="1" data-old="{{$g.Cur}}" data-label="Heater" aria-label="Increase heater temperature" {{if or $g.Off $g.IncOff}}disabled{{end}}>+</button>
+</form>
+{{else}}
+<form method="get" action="/device" class="seg-form">
+<div class="segmented">
+{{range $g.Opts}}<button type="submit" name="stage" value="{{.Stage}}" data-old="{{.Old}}" data-label="{{.DataLabel}}" data-confirm="{{.Confirm}}" data-verb="Confirm change" aria-pressed="{{if .Pressed}}true{{else}}false{{end}}" {{if or $g.Off .Pressed}}disabled{{end}}>{{.Label}}</button>{{end}}
+</div>
+</form>
+{{end}}
+</div>
+{{end}}
+{{if .Confirm}}
+<div class="confirm" role="status">
+<p>{{.Confirm.Text}}</p>
+<form method="post" action="/control">
+<input type="hidden" name="token" value="{{.Token}}">
+<input type="hidden" name="confirmed" value="1">
+<input type="hidden" name="page" value="device">
+<input type="hidden" name="action" value="{{.Confirm.Action}}">
+<input type="hidden" name="siid" value="{{.Confirm.SIID}}">
+<input type="hidden" name="piid" value="{{.Confirm.PIID}}">
+<input type="hidden" name="value" value="{{.Confirm.Value}}">
+<input type="hidden" name="expected_old" value="{{.Confirm.Expected}}">
+<button class="btn btn-primary" type="submit" data-busy="Sending…">{{.Confirm.Verb}}</button>
+</form>
+<a class="btn" href="/device">Cancel</a>
+</div>
+{{end}}
+</section>
+<section class="panel">
+<h2>Dashboard settings</h2>
+<form method="post" action="/admin/settings">
+<input type="hidden" name="token" value="{{.Token}}">
+<div class="control">
+<div class="control-head"><label class="control-label" for="poll-s">Poll interval</label>{{if eq .PollSource "saved"}}<p class="note">Source saved</p>{{end}}</div>
+<div class="inline-field">
+<input id="poll-s" class="input-compact" name="poll" type="number" inputmode="numeric" min="20" max="300" spellcheck="false" autocorrect="off" autocapitalize="none" value="{{.Poll}}" required>
+<span class="muted">s</span>
+<button class="btn btn-sm btn-primary" type="submit" data-busy="Saving…">Save</button>
+</div>
+</div>
+</form>
+<form method="post" action="/admin/settings">
+<input type="hidden" name="token" value="{{.Token}}">
+<div class="control">
+<div class="control-head"><div class="control-label">Temperature</div>{{if eq .TempSource "saved"}}<p class="note">Source saved</p>{{end}}</div>
+<div class="segmented">
+<button type="submit" name="temp_unit" value="C" data-busy="Saving…" aria-pressed="{{if eq .TempUnit "C"}}true{{else}}false{{end}}">°C</button>
+<button type="submit" name="temp_unit" value="F" data-busy="Saving…" aria-pressed="{{if eq .TempUnit "F"}}true{{else}}false{{end}}">°F</button>
+</div>
+</div>
+</form>
+<form method="post" action="/admin/settings">
+<input type="hidden" name="token" value="{{.Token}}">
+<div class="control">
+<div class="control-head"><div class="control-label">Write access</div>{{if eq .ReadOnlySource "saved"}}<p class="note">Source saved</p>{{end}}</div>
+<div class="segmented">
+<button type="submit" name="read_only" value="false" data-busy="Saving…" aria-pressed="{{if .ReadOnlyOn}}false{{else}}true{{end}}" {{if .ReadOnlyLocked}}disabled{{end}}>Allow controls</button>
+<button type="submit" name="read_only" value="true" data-busy="Saving…" aria-pressed="{{if .ReadOnlyOn}}true{{else}}false{{end}}" {{if .ReadOnlyLocked}}disabled{{end}}>Read-only</button>
+</div>
+{{if .ReadOnlyLocked}}<p class="note">Locked to read-only by DMD_READ_ONLY=true.</p>{{end}}
+</div>
+</form>
+{{if .HasOverrides}}
+<div class="actions">
+<form method="post" action="/admin/settings">
+<input type="hidden" name="token" value="{{.Token}}">
+<input type="hidden" name="reset" value="1">
+<button class="btn btn-sm" type="submit" data-busy="Sending…">Reset to defaults</button>
+</form>
+</div>
+{{end}}
+</section>
+<section class="panel" id="ota">
+<div class="panel-head">
+<h2>Firmware &amp; <span translate="no">OTA</span></h2>
+<span class="pill pill-{{.OTAPillClass}}">{{.OTAPill}}</span>
+</div>
+<dl class="kv">
+<div><dt>Installed</dt><dd class="mono" translate="no">{{.OTAVersion}}</dd></div>
+<div><dt>Status</dt><dd>{{.OTAState}}{{if .OTAProgress}} {{.OTAProgress}}{{end}}</dd></div>
+{{if .OTAHasUpdate}}<div><dt>Available</dt><dd><span class="mono" translate="no">{{.OTANewVersion}}</span>{{if .OTATarget}} ({{.OTATarget}}){{end}}</dd></div>{{end}}
+{{if .OTAWhen}}<div><dt>Last transition</dt><dd>{{.OTAWhen}}</dd></div>{{end}}
+<div><dt>Last checked</dt><dd>{{if .OTAChecked}}{{.OTAChecked}}{{else}}Not checked yet{{end}}</dd></div>
+</dl>
+{{if and .OTAHasUpdate .OTADescription}}<p class="note">{{.OTADescription}}</p>{{end}}
+<div class="actions">
+<form method="post" action="/ota/check">
+<input type="hidden" name="token" value="{{.Token}}">
+<button class="btn btn-sm" type="submit" data-busy="Checking…">Check for updates</button>
+</form>
+{{if and .OTAHasUpdate (not .OTAUpdateConfirm)}}
+<form method="get" action="/device#ota">
+<button class="btn btn-sm btn-primary" type="submit" name="stage" value="ota_update" {{if not .OTACanUpdate}}disabled{{end}}>Install update</button>
+</form>
+{{end}}
+</div>
+{{if .OTAUpdateConfirm}}
+<div class="confirm" role="status">
+<p>Install firmware <span class="mono" translate="no">{{.OTANewVersion}}</span>{{if .OTATarget}} ({{.OTATarget}}){{end}}? The purifier will download the update and reboot.</p>
+<form method="post" action="/ota/update">
+<input type="hidden" name="token" value="{{.Token}}">
+<input type="hidden" name="confirmed" value="1">
+<button class="btn btn-primary" type="submit" data-busy="Starting…">Confirm firmware update</button>
+</form>
+<a class="btn" href="/device#ota">Cancel</a>
+</div>
+{{end}}
+</section>
+<section class="panel" id="ai">
+<div class="panel-head">
+<h2>AI analysis (<span translate="no">OpenAI</span>)</h2>
+{{if .OpenAIConfigured}}<span class="pill pill-ok">Configured</span>{{else}}<span class="pill pill-muted">Optional</span>{{end}}
+</div>
+<p class="note">{{if .OpenAIConfigured}}Active key <span class="mono" translate="no">{{.OpenAIHint}}</span> ({{.OpenAISource}}).{{else}}Add an OpenAI API key to enable automatic hourly summaries and per-chart reports.{{end}}</p>
+<form method="post" action="/admin/openai" class="settings">
+<input type="hidden" name="token" value="{{.Token}}">
+<label for="openai-key"><span translate="no">OpenAI</span> API key</label>
+<input id="openai-key" name="api_key" type="password" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="none" placeholder="{{if .OpenAIEnvLocked}}Managed by DMD_OPENAI_API_KEY_FILE{{else if .OpenAIConfigured}}Enter a new sk-… key to replace{{else}}sk-…{{end}}" {{if .OpenAIEnvLocked}}disabled{{end}}>
+<label for="openai-model">Model</label>
+<select id="openai-model" name="model">
+{{range .OpenAIModels}}<option value="{{.}}"{{if eq . $.OpenAIModel}} selected{{end}}>{{.}}</option>{{end}}
+</select>
+<p class="note">Encrypted at rest with <span translate="no">AES-256-GCM</span> (mode 0600). Never shown again after saving.</p>
+<div class="ai-form-actions">
+<button class="btn btn-sm btn-primary" type="submit" data-busy="Saving…">{{if .OpenAIConfigured}}Save settings{{else}}Save API key{{end}}</button>
+{{if and .OpenAISaved (not .OpenAIEnvLocked)}}<button class="btn btn-sm" type="submit" form="ai-remove-form" data-busy="Removing…">Remove saved key</button>{{end}}
+</div>
+</form>
+{{if and .OpenAISaved (not .OpenAIEnvLocked)}}
+<form id="ai-remove-form" method="post" action="/admin/openai">
+<input type="hidden" name="token" value="{{.Token}}">
+<input type="hidden" name="delete" value="1">
+</form>
+{{end}}
+</section>
+</div>
+<details class="diag-details workspace-diag">
+<summary>Diagnostics &amp; property map</summary>
+<section class="panel diag-panel">
+<div class="panel-head">
+<h2>Property map</h2>
+<form method="post" action="/admin/verify-map">
+<input type="hidden" name="token" value="{{.Token}}">
+<button class="btn btn-sm" type="submit" data-busy="Verifying…">Verify property map</button>
+</form>
+</div>
+<p class="note">{{if eq .Verified "write-probe"}}Verified for writes{{else}}Read-only sweep only — run dmd probe-writes{{end}}</p>
+<table class="log">
+<caption class="sr">Realized properties</caption>
+<thead><tr>
+<th scope="col">Key</th>
+<th scope="col">Property</th>
+<th scope="col" class="num">Value</th>
+<th scope="col" class="num">Age</th>
+<th scope="col">State</th>
+</tr></thead>
+<tbody>
+{{range .Props}}<tr>
+<td>{{.Key}}</td>
+<td class="mono" translate="no">{{.ID}}</td>
+<td class="num">{{.Value}}</td>
+<td class="num">{{.Age}}</td>
+<td>{{.State}}</td>
+</tr>{{else}}<tr><td colspan="5">No properties recorded yet.</td></tr>{{end}}
+</tbody>
+</table>
+</section>
+</details>
+<section class="panel tool-danger workspace-session">
+<div class="session-row">
+<div class="control-head">
+<h2>Session</h2>
+<p class="note">Dreame cloud account</p>
+</div>
+{{if not .LogoutConfirm}}
+<form method="get" action="/device">
+<button class="btn btn-sm" type="submit" name="stage" value="logout">Sign out</button>
+</form>
+{{end}}
+</div>
+{{if .LogoutConfirm}}
+<div class="confirm" role="status">
+<p>Sign out and delete the saved Dreame session token? Saved sensor history stays on disk.</p>
+<form method="post" action="/logout">
+<input type="hidden" name="token" value="{{.Token}}">
+<input type="hidden" name="confirmed" value="1">
+<button class="btn btn-primary" type="submit" data-busy="Sending…">Confirm sign out</button>
+</form>
+<a class="btn" href="/device">Cancel</a>
+</div>
+{{end}}
+</section>
+</div>
+{{end}}

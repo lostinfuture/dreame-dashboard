@@ -1,0 +1,44 @@
+{{define "activity"}}
+{{template "top" .}}
+{{template "subbar" .}}
+<p class="banner" id="status-banner" role="status" {{if not .Banner}}hidden{{end}}>{{.Banner}}</p>
+{{template "flash" .}}
+<section class="panel">
+<h1>{{.H1}}</h1>
+<div class="filters">
+<nav class="segmented" aria-label="Activity kind">
+<a href="/activity?kind=all&amp;days={{.Days}}" {{if eq .Kind "all"}}aria-current="page"{{end}}>All</a>
+<a href="/activity?kind=commands&amp;days={{.Days}}" {{if eq .Kind "commands"}}aria-current="page"{{end}}>Commands</a>
+<a href="/activity?kind=events&amp;days={{.Days}}" {{if eq .Kind "events"}}aria-current="page"{{end}}>Events</a>
+</nav>
+<nav class="segmented" aria-label="Activity range">
+<a href="/activity?kind={{.Kind}}&amp;days=1" {{if eq .Days 1}}aria-current="page"{{end}}>24&nbsp;h</a>
+<a href="/activity?kind={{.Kind}}&amp;days=7" {{if eq .Days 7}}aria-current="page"{{end}}>7&nbsp;d</a>
+<a href="/activity?kind={{.Kind}}&amp;days=30" {{if eq .Days 30}}aria-current="page"{{end}}>30&nbsp;d</a>
+<a href="/activity?kind={{.Kind}}&amp;days=180" {{if eq .Days 180}}aria-current="page"{{end}}>180&nbsp;d</a>
+</nav>
+</div>
+<label class="sr" for="activity-filter">Filter activity</label>
+<input id="activity-filter" type="search" placeholder="Filter by property, value, or code…" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="none" aria-label="Filter activity">
+<p class="note" id="activity-count" role="status">Showing {{.Shown}} of {{.Total}}</p>
+<table class="log{{if gt .Total 50}} log-long{{end}}">
+<caption class="sr">Command and event log</caption>
+<thead><tr>
+<th scope="col" class="tabnum">Time</th>
+<th scope="col">Kind</th>
+<th scope="col">Target</th>
+<th scope="col">Detail</th>
+<th scope="col" class="num">Result</th>
+</tr></thead>
+<tbody id="activity-body">
+{{range .Rows}}<tr data-filter="{{.Filter}}">
+<td class="tabnum">{{.When}}</td>
+<td>{{.Kind}}</td>
+<td>{{.Target}}</td>
+<td>{{.Detail}}</td>
+<td class="num">{{.Result}}</td>
+</tr>{{else}}<tr class="empty"><td colspan="5">No commands or events recorded in this range.</td></tr>{{end}}
+</tbody>
+</table>
+</section>
+{{end}}

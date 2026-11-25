@@ -1,0 +1,23 @@
+# Local private design and research notes
+private/
+
+# Environment and secret files
+.env
+.env.*
+!.env.example
+*.pw
+*.key
+*.pem
+secrets/
+
+# Local runtime state and compose overrides
+data/
+compose.*.yml
+docker-compose.override.yml
+
+# Build and test artifacts
+/dmd
+*.test
+*.out
+coverage.txt
+.DS_Store

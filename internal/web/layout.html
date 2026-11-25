@@ -1,0 +1,24 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101410">
+<meta name="csrf-token" content="{{.Token}}">
+<title>{{.Title}}</title>
+<link rel="stylesheet" href="/page.css">
+{{if eq .Gate "boot"}}<meta http-equiv="refresh" content="3">{{end}}
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<main id="main" class="shell" tabindex="-1">
+{{if eq .Body "gate"}}{{template "gate" .}}{{end}}
+{{if eq .Body "overview"}}{{template "overview" .}}{{end}}
+{{if eq .Body "device"}}{{template "device" .}}{{end}}
+{{if eq .Body "activity"}}{{template "activity" .}}{{end}}
+</main>
+<script src="/chart.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
+{{end}}

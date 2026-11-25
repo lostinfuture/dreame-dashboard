@@ -1,0 +1,283 @@
+name: Build and Publish Docker Image
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to build
+        required: false
+        type: string
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "Dockerfile"
+      - "cmd/**"
+      - "internal/**"
+      - "go.mod"
+      - "scripts/**"
+      - ".github/workflows/build-docker.yml"
+  schedule:
+    # Monday 04:00 UTC. Publishes edge. Does not move latest.
+    - cron: "0 4 * * 1"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  PLATFORMS: linux/amd64,linux/arm64
+  GOTOOLCHAIN: local
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      channel: ${{ steps.version.outputs.channel }}
+      major_minor: ${{ steps.version.outputs.major_minor }}
+      major: ${{ steps.version.outputs.major }}
+    steps:
+      - name: Resolve image version
+        id: version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "${REF_TYPE}" = "tag" ] && [ "${EVENT}" != "schedule" ]; then
+            VERSION="${REF_NAME#v}"
+            CHANNEL=release
+            MAJOR_MINOR="${VERSION%.*}"
+            MAJOR="${VERSION%%.*}"
+          else
+            VERSION=edge
+            CHANNEL=edge
+            MAJOR_MINOR=""
+            MAJOR=""
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "channel=${CHANNEL}" >> "$GITHUB_OUTPUT"
+          echo "major_minor=${MAJOR_MINOR}" >> "$GITHUB_OUTPUT"
+          echo "major=${MAJOR}" >> "$GITHUB_OUTPUT"
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: "1.27"
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)"
+
+      - name: vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -count=1 ./...
+
+  scan:
+    needs: [version, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: true
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+        with:
+          platforms: ${{ env.PLATFORMS }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567
+        with:
+          version: v0.76.2
+          cache: true
+
+      - name: Build one platform
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          scope="${PLATFORM//\//-}"
+          docker buildx build \
+            --build-arg SUPERVISOR_VERSION="${VERSION}" \
+            --platform "${PLATFORM}" \
+            --provenance=false \
+            --sbom=false \
+            --cache-from type=gha,scope="${scope}" \
+            --cache-to type=gha,scope="${scope}",mode=max \
+            -o "type=docker,dest=/tmp/${scope}.tar" \
+            .
+
+      - name: Self-test
+        if: matrix.platform == 'linux/amd64'
+        run: |
+          set -euo pipefail
+          load=$(docker load -i /tmp/linux-amd64.tar)
+          ref=$(printf '%s\n' "$load" | sed -n 's/^Loaded image: //p' | head -1)
+          if [ -z "$ref" ]; then
+            ref=$(printf '%s\n' "$load" | sed -n 's/^Loaded image ID: //p' | head -1)
+          fi
+          docker run --rm "$ref" version
+
+      - name: Scan for Critical and High vulnerabilities
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          scope="${PLATFORM//\//-}"
+          trivy image \
+            --input "/tmp/${scope}.tar" \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --scanners vuln
+
+  publish:
+    needs: [version, test, scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+        with:
+          platforms: ${{ env.PLATFORMS }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        with:
+          platforms: ${{ env.PLATFORMS }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check Docker Hub credentials
+        id: dockerhub
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          set -euo pipefail
+          OWNER_LOWER="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          if [ -n "${DOCKER_PASSWORD}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "username=${DOCKER_USERNAME:-${OWNER_LOWER}}" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "username=${OWNER_LOWER}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to Docker Hub
+        if: steps.dockerhub.outputs.enabled == 'true'
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          username: ${{ steps.dockerhub.outputs.username }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Prepare image tags
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          CHANNEL: ${{ needs.version.outputs.channel }}
+          MAJOR_MINOR: ${{ needs.version.outputs.major_minor }}
+          MAJOR: ${{ needs.version.outputs.major }}
+          DOCKERHUB: ${{ steps.dockerhub.outputs.enabled }}
+          DOCKER_USER: ${{ steps.dockerhub.outputs.username }}
+        run: |
+          set -euo pipefail
+          REPO_LOWER="$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          GHCR_IMAGE="ghcr.io/${REPO_LOWER}"
+          DH_IMAGE="${DOCKER_USER}/dreame-dashboard"
+          SHORT_SHA="$(git rev-parse --short=12 HEAD)"
+          if [ "${CHANNEL}" = "release" ]; then
+            TAGS=(
+              "${GHCR_IMAGE}:${VERSION}"
+              "${GHCR_IMAGE}:v${VERSION}"
+              "${GHCR_IMAGE}:${MAJOR_MINOR}"
+              "${GHCR_IMAGE}:${MAJOR}"
+              "${GHCR_IMAGE}:latest"
+            )
+            if [ "${DOCKERHUB}" = "true" ]; then
+              TAGS+=(
+                "${DH_IMAGE}:${VERSION}"
+                "${DH_IMAGE}:v${VERSION}"
+                "${DH_IMAGE}:${MAJOR_MINOR}"
+                "${DH_IMAGE}:${MAJOR}"
+                "${DH_IMAGE}:latest"
+              )
+            fi
+          else
+            TAGS=(
+              "${GHCR_IMAGE}:edge"
+              "${GHCR_IMAGE}:sha-${SHORT_SHA}"
+            )
+            if [ "${DOCKERHUB}" = "true" ]; then
+              TAGS+=(
+                "${DH_IMAGE}:edge"
+                "${DH_IMAGE}:sha-${SHORT_SHA}"
+              )
+            fi
+          fi
+          printf -v TAG_ARGS ' --tag %s' "${TAGS[@]}"
+          echo "TAG_ARGS=${TAG_ARGS}" >> "$GITHUB_ENV"
+          echo "GHCR_IMAGE=${GHCR_IMAGE}" >> "$GITHUB_ENV"
+
+      - name: Build and push multi-arch image
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          docker buildx build \
+            --build-arg SUPERVISOR_VERSION="${VERSION}" \
+            --platform "${PLATFORMS}" \
+            --provenance=false \
+            --sbom=false \
+            --cache-from type=gha,scope=linux-amd64 \
+            --cache-from type=gha,scope=linux-arm64 \
+            --cache-to type=gha,scope=publish,mode=max \
+            --push \
+            ${TAG_ARGS} \
+            .
+
+      - name: Check the published arm64 image
+        run: |
+          set -euo pipefail
+          ref="${GHCR_IMAGE}:${VERSION}"
+          docker run --rm --platform linux/arm64 "$ref" version
+        env:
+          VERSION: ${{ needs.version.outputs.version }}

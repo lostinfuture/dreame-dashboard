@@ -4,6 +4,8 @@
 
 Do not forward port `9094` on your router. The interface has no login password unless you enable HTTP Basic auth.
 
+![Dreame AirPursue PM20 dashboard overview](docs/screenshot-overview.png)
+
 ## What it shows and controls
 
 The Overview page (`/`) displays current PM2.5, air quality status (or Standby when the unit is off), and live readouts for PM1, PM2.5, PM10, HCHO, TVOC, temperature, and relative humidity. Below the summary are eight individual metric charts with `6h`, `24h`, `7d`, and `30d` spans, hover scrubbing, and a zoom dialog. All pages receive live updates over Server-Sent Events (`/events`).
